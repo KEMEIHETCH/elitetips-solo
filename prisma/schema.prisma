@@ -1,0 +1,132 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  ADMIN
+  CLIENT
+}
+
+enum PaymentMethod {
+  MPESA_INTASEND
+  PAYPAL_MPESA
+}
+
+enum PaymentStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+  REFUNDED
+}
+
+enum PredictionStatus {
+  DRAFT
+  PUBLISHED
+  EXPIRED
+}
+
+model User {
+  id                String          @id @default(cuid())
+  email             String          @unique
+  name              String
+  phone             String?
+  role              UserRole        @default(CLIENT)
+  password          String?
+  emailVerified     Boolean         @default(false)
+  isActive          Boolean         @default(true)
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+
+  payments          Payment[]
+  predictionAccess  PredictionAccess[]
+
+  @@index([email])
+  @@index([role])
+}
+
+model Prediction {
+  id                String          @id @default(cuid())
+  title             String
+  description       String?
+  matchDate         DateTime
+  matches           Json
+  totalOdds         Float           @default(0)
+  status            PredictionStatus @default(DRAFT)
+  publishedAt       DateTime?
+  expiresAt         DateTime?
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+
+  access            PredictionAccess[]
+
+  @@index([status])
+  @@index([matchDate])
+}
+
+model PredictionAccess {
+  id                String          @id @default(cuid())
+  predictionId      String
+  clientId          String
+  userId            String
+  paymentId         String?
+  accessGrantedAt   DateTime        @default(now())
+  expiresAt         DateTime
+  isActive          Boolean         @default(true)
+
+  prediction        Prediction      @relation(fields: [predictionId], references: [id])
+  user              User            @relation(fields: [userId], references: [id])
+  payment           Payment?        @relation(fields: [paymentId], references: [id])
+
+  @@index([predictionId])
+  @@index([userId])
+}
+
+model Payment {
+  id                String          @id @default(cuid())
+  clientId          String
+  userId            String
+  predictionId      String
+  amount            Float
+  currency          String          @default("KES")
+  method            PaymentMethod
+  status            PaymentStatus   @default(PENDING)
+  
+  intasendChargeId  String?         @unique
+  intasendReference String?
+  mpesaCode         String?
+  mpesaPhone        String?
+  
+  paypalOrderId     String?         @unique
+  paypalCaptureId   String?
+  paypalPayerId     String?
+  paypalEmail       String?
+  
+  description       String?
+  metadata          Json?
+  processedAt       DateTime?
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+
+  user              User            @relation(fields: [userId], references: [id])
+  prediction        Prediction      @relation(fields: [predictionId], references: [id])
+  access            PredictionAccess?
+
+  @@index([userId])
+  @@index([status])
+  @@index([method])
+}
+
+model Settings {
+  id                String          @id @default(cuid())
+  key               String          @unique
+  value             Json
+  updatedAt         DateTime        @updatedAt
+
+  @@index([key])
+}
